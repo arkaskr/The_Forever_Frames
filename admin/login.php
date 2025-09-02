@@ -83,14 +83,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     const loginBtn = document.getElementById("loginBtn");
 
     form.addEventListener("submit", function(e) {
-      // Change button text immediately
       loginBtn.innerText = "Generating OTP...";
       loginBtn.disabled = true;
-
-      // Allow the form to actually submit after short delay
-      setTimeout(() => {
-        form.submit();
-      }, 1000); // 1 second delay
     });
   </script>
 

@@ -3,8 +3,13 @@ session_start();
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
+use Dotenv\Dotenv;
 
 require __DIR__ . '/../vendor/autoload.php';
+
+// Load .env
+$dotenv = Dotenv::createImmutable(__DIR__ . "/..");
+$dotenv->load();
 
 // If OTP is set in session, send it by email
 if (isset($_SESSION['otp']) && isset($_SESSION['email'])) {
@@ -18,8 +23,8 @@ if (isset($_SESSION['otp']) && isset($_SESSION['email'])) {
         $mail->isSMTP();
         $mail->Host       = 'smtp.gmail.com';
         $mail->SMTPAuth   = true;
-        $mail->Username   = '';   // your Gmail
-        $mail->Password   = '';    // Gmail App Password
+        $mail->Username   = $_ENV['MAIL_USERNAME'];   // your Gmail
+        $mail->Password   = $_ENV['MAIL_PASSWORD'];   // Gmail App Password
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = 587;
 
@@ -129,8 +134,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             // Change button text
             verifyBtn.innerText = "Verifying OTP...";
             verifyBtn.disabled = true;
-
-            // Let form submit normally (no delay needed)
         });
     </script>
 
