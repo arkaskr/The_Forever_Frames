@@ -1,11 +1,32 @@
 <?php
 session_start();
 
+if (isset($_SESSION['success'])) {
+  echo "<p style='color: green; font-weight: bold;'>" . $_SESSION['success'] . "</p>";
+  unset($_SESSION['success']);
+}
+
+if (isset($_SESSION['error'])) {
+  echo "<p style='color: red; font-weight: bold;'>" . $_SESSION['error'] . "</p>";
+  unset($_SESSION['error']);
+}
+
+
 // login check
 if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true) {
   header("Location: login.php");
   exit();
 }
+
+require_once "dbconnection.php";
+
+// Fetching banners
+$banners = [];
+$result = $conn->query("SELECT * FROM banners ORDER BY id DESC");
+if ($result && $result->num_rows > 0) {
+  $banners = $result->fetch_all(MYSQLI_ASSOC);
+}
+
 
 // ---------------- DEMO DATA ---------------- //
 $bookings = [
@@ -34,16 +55,6 @@ $bookings = [
 $clients = [
   ["id" => 3, "name" => "Subhajit Roy", "event" => "Corporate Event", "date" => "2025-08-20", "status" => "Confirmed"],
   ["id" => 4, "name" => "Rohit Sharma", "event" => "Anniversary", "date" => "2025-08-15", "status" => "Completed"],
-];
-
-$gallery = [
-  ["type" => "photo", "path" => "uploads/photo1.jpg"],
-  ["type" => "video", "path" => "uploads/video1.mp4"],
-];
-
-$banners = [
-  ["path" => "uploads/banner1.jpg"],
-  ["path" => "uploads/banner2.jpg"],
 ];
 
 ?>
@@ -116,51 +127,39 @@ $banners = [
     <!-- Bookings Section -->
     <section id="bookings" class="content-section">
       <h2 class="text-2xl font-bold mb-6">Latest Bookings</h2>
-
       <!-- Header Row -->
-      <div class="grid grid-cols-3 bg-blue-600 text-white font-semibold rounded-lg shadow mb-4 px-6 py-3">
+      <div class="grid grid-cols-4 bg-blue-600 text-white font-semibold rounded-lg shadow mb-4 px-6 py-3">
         <div>Name / Phone</div>
         <div class="text-center">Event</div>
         <div class="text-right mr-[2rem]">Date</div>
+        <div class="text-center">Actions</div>
       </div>
-
       <!-- Booking Cards -->
-      <div class="space-y-4">
-        <?php foreach ($bookings as $b): ?>
-          <div class="bg-white shadow rounded-lg overflow-hidden">
+      <div class="space-y-4"> <?php foreach ($bookings as $b): ?> <div class="bg-white shadow rounded-lg overflow-hidden">
             <!-- Header (click to expand) -->
-            <div onclick="toggleDetails(<?= $b['id'] ?>)"
-              class="grid grid-cols-3 items-center px-6 py-4 cursor-pointer hover:bg-gray-50">
-
+            <div class="grid grid-cols-4 items-center px-6 py-4 hover:bg-gray-50">
               <!-- Left (ID, Name, Phone) -->
-              <div>
+              <div onclick="toggleDetails(<?= $b['id'] ?>)" class="cursor-pointer">
                 <p class="font-bold text-gray-800">#<?= $b["id"] ?> - <?= htmlspecialchars($b["name"]) ?></p>
                 <p class="text-sm text-gray-600">📞 <?= htmlspecialchars($b["phone"]) ?></p>
               </div>
-
               <!-- Middle (Event) -->
-              <div class="text-center font-medium text-gray-700">
-                <?= htmlspecialchars($b["event"]) ?>
-              </div>
-
-              <!-- Right (Date) -->
-              <div class="text-right text-md text-gray-600">
-                <?= $b["date"] ?>
+              <div class="text-center font-medium text-gray-700"> <?= htmlspecialchars($b["event"]) ?> </div>
+              <!-- Date -->
+              <div class="text-right text-md text-gray-600"> <?= $b["date"] ?> </div>
+              <!-- Actions -->
+              <div class="text-center space-x-2">
+                <button class="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600">Accept</button>
+                <a href="delete_booking.php?id=<?= $b['id'] ?>" class="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600">Delete</a>
               </div>
             </div>
-
             <!-- Hidden Details -->
             <div id="details-<?= $b['id'] ?>" class="hidden border-t px-6 py-4 bg-gray-50">
               <p><span class="font-semibold">Email:</span> <?= htmlspecialchars($b["email"]) ?></p>
               <p><span class="font-semibold">Venue:</span> <?= htmlspecialchars($b["venue"]) ?></p>
               <p><span class="font-semibold">Message:</span> <?= htmlspecialchars($b["message"]) ?></p>
-              <div class="mt-4 flex justify-end">
-                <button class="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600">Accept</button>
-              </div>
             </div>
-          </div>
-        <?php endforeach; ?>
-      </div>
+          </div> <?php endforeach; ?> </div>
     </section>
 
     <!-- Clients Section -->
@@ -288,7 +287,7 @@ $banners = [
       <!-- Upload Card -->
       <div class="bg-white shadow rounded-xl p-8 mb-8 border border-gray-100">
         <h3 class="text-lg font-semibold mb-4 text-gray-700">Upload Banner</h3>
-        <form action="upload_banner.php" method="post" enctype="multipart/form-data" class="space-y-5">
+        <form action="banner_upload.php" method="post" enctype="multipart/form-data" class="space-y-5">
 
           <!-- File Input (Only Images) -->
           <label class="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-blue-400 transition">
@@ -300,8 +299,14 @@ $banners = [
               <p class="text-sm"><span class="font-semibold">Click to upload</span> or drag & drop</p>
               <p class="text-xs text-gray-400 mt-1">PNG, JPG (max 10MB)</p>
             </div>
-            <input type="file" name="banner" accept="image/*" class="hidden" required />
+            <input type="file" id="bannerInput" name="banner" accept="image/*" class="hidden" required />
           </label>
+
+          <!-- Image Preview -->
+          <div id="previewContainer" class="hidden mt-4">
+            <h4 class="text-sm font-medium text-gray-600 mb-2">Preview:</h4>
+            <img id="previewImage" src="" alt="Selected Banner" class="w-full h-48 object-cover rounded-lg shadow">
+          </div>
 
           <!-- Submit -->
           <button type="submit" class="w-full bg-purple-600 text-white py-3 rounded-lg font-medium shadow hover:bg-purple-700 transition">
@@ -315,13 +320,13 @@ $banners = [
         <h3 class="text-lg font-semibold mb-6 text-gray-700">Current Banners</h3>
         <?php if (!empty($banners)): ?>
           <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-            <?php foreach ($banners as $index => $b): ?>
+            <?php foreach ($banners as $b): ?>
               <div class="relative group bg-gray-50 rounded-xl overflow-hidden shadow hover:shadow-lg transition">
                 <img src="<?= htmlspecialchars($b["path"]) ?>" class="w-full h-40 object-cover">
 
                 <!-- Overlay delete -->
                 <div class="absolute inset-0 bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
-                  <a href="delete_banner.php?id=<?= $index ?>"
+                  <a href="delete_banner.php?id=<?= $b['id'] ?>"
                     class="px-4 py-2 bg-red-500 text-white rounded-lg shadow hover:bg-red-600 transition">
                     Delete
                   </a>
@@ -335,8 +340,6 @@ $banners = [
       </div>
     </section>
 
-
-
   </main>
 
   <script>
@@ -344,6 +347,26 @@ $banners = [
       document.querySelectorAll(".content-section").forEach(sec => sec.classList.add("hidden"));
       document.getElementById(sectionId).classList.remove("hidden");
     }
+  </script>
+
+  <script>
+    document.getElementById("bannerInput").addEventListener("change", function(event) {
+      const file = event.target.files[0];
+      const previewContainer = document.getElementById("previewContainer");
+      const previewImage = document.getElementById("previewImage");
+
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          previewImage.src = e.target.result;
+          previewContainer.classList.remove("hidden");
+        }
+        reader.readAsDataURL(file);
+      } else {
+        previewContainer.classList.add("hidden");
+        previewImage.src = "";
+      }
+    });
   </script>
 </body>
 
